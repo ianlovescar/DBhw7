@@ -6,11 +6,12 @@ using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
-[assembly: InternalsVisibleTo( "TestProject1" )]
+[assembly: InternalsVisibleTo("TestProject1")]
 namespace LibraryWebServer.Controllers
 {
     public class HomeController : Controller
     {
+        protected Team155LibraryContext db = new Team155LibraryContext();
 
         // WARNING:
         // This very simple web server is designed to be as tiny and simple as possible
@@ -32,10 +33,10 @@ namespace LibraryWebServer.Controllers
         /// true if the login is accepted, false otherwise.
         /// </returns>
         [HttpPost]
-        public IActionResult CheckLogin( string name, int cardnum )
+        public IActionResult CheckLogin(string name, int cardnum)
         {
             bool loginSuccessful = false;
-            using (Team155LibraryContext db = new Team155LibraryContext())
+            using (db = new Team155LibraryContext())
             {
                 var query = from p in db.Patrons
                             where p.Name == name && p.CardNum == cardnum
@@ -44,19 +45,19 @@ namespace LibraryWebServer.Controllers
                 foreach (var item in query)
                 {
                     loginSuccessful = true;
-                   
+
                 }
             }
-          
-            if ( !loginSuccessful )
+
+            if (!loginSuccessful)
             {
-                return Json( new { success = false } );
+                return Json(new { success = false });
             }
             else
             {
                 user = name;
                 card = cardnum;
-                return Json( new { success = true } );
+                return Json(new { success = true });
             }
         }
 
@@ -70,7 +71,7 @@ namespace LibraryWebServer.Controllers
         {
             user = "";
             card = -1;
-            return Json( new { success = true } );
+            return Json(new { success = true });
         }
 
         /// <summary>
@@ -87,7 +88,7 @@ namespace LibraryWebServer.Controllers
         public ActionResult AllTitles()
         {
 
-            using (Team155LibraryContext db = new Team155LibraryContext())
+            using (db = new Team155LibraryContext())
             {
                 var query = from t in db.Titles
                             join i in db.Inventory on t.Isbn equals i.Isbn into inv
@@ -102,18 +103,12 @@ namespace LibraryWebServer.Controllers
                                 title = t.Title,
                                 author = t.Author,
                                 serial = j1 == null ? null : (uint?)j1.Serial,
-                                name = j3.Name == null ? null : j3.Name,
+                                name = j3.Name == null ? "" : j3.Name,
 
                             };
 
                 return Json(query.ToList());
-
-
             }
-            
-            
-
-
         }
 
         /// <summary>
@@ -127,7 +122,7 @@ namespace LibraryWebServer.Controllers
         [HttpPost]
         public ActionResult ListMyBooks()
         {
-            using (Team155LibraryContext db = new Team155LibraryContext())
+            using (db = new Team155LibraryContext())
             {
                 var query = from t in db.Titles
                             join i in db.Inventory on t.Isbn equals i.Isbn into inv
@@ -135,23 +130,18 @@ namespace LibraryWebServer.Controllers
                             join c in db.CheckedOut on j1.Serial equals c.Serial into chkOut
                             from j2 in chkOut.DefaultIfEmpty()
                             join p in db.Patrons on j2.CardNum equals p.CardNum into pat
-                            from j3 in pat.DefaultIfEmpty() where j3.Name == user
+                            from j3 in pat.DefaultIfEmpty()
+                            where j3.Name == user
                             select new
                             {
-                               
+
                                 title = t.Title,
                                 author = t.Author,
                                 serial = j1 == null ? null : (uint?)j1.Serial,
-                                
-
                             };
-
                 return Json(query.ToList());
-
-
             }
         }
-
 
         /// <summary>
         /// Updates the database to represent that
@@ -162,12 +152,26 @@ namespace LibraryWebServer.Controllers
         /// <param name="serial">The serial number of the book to check out</param>
         /// <returns>success</returns>
         [HttpPost]
-        public ActionResult CheckOutBook( int serial )
+        public ActionResult CheckOutBook(int serial)
         {
-            // You may have to cast serial to a (uint)
+            using (Team155LibraryContext db = new Team155LibraryContext())
+            {
+
+                var query = from s in db.CheckedOut
+                            where s.Serial == serial
+                            select s.CardNum;
+
+                if (query.Any())
+                    return Json(new { success = false });
 
 
-            return Json( new { success = true } );
+                CheckedOut c = new CheckedOut();
+                c.Serial = (uint)serial;
+                c.CardNum = (uint)card;
+                db.CheckedOut.Add(c);
+                db.SaveChanges();
+                return Json(new { success = true });
+            }
         }
 
         /// <summary>
@@ -178,11 +182,28 @@ namespace LibraryWebServer.Controllers
         /// <param name="serial">The serial number of the book to return</param>
         /// <returns>Success</returns>
         [HttpPost]
-        public ActionResult ReturnBook( int serial )
+        public ActionResult ReturnBook(int serial)
         {
-            // You may have to cast serial to a (uint)
+            using (db = new Team155LibraryContext())
+            {
 
-            return Json( new { success = true } );
+                var query = from s in db.CheckedOut
+                            where s.Serial == serial
+                            select s.CardNum;
+
+                if (query.Any())
+                {
+                    CheckedOut c = new CheckedOut();
+                    c.Serial = (uint)serial;
+                    c.CardNum = (uint)card;
+                    db.CheckedOut.Remove(c);
+                    db.SaveChanges();
+                    return Json(new { success = true });
+                }
+
+                return Json(new { success = false });
+
+            }
         }
 
 
@@ -191,10 +212,25 @@ namespace LibraryWebServer.Controllers
         /*******************************************/
 
 
+
+        public void UseLibraryContext(Team155LibraryContext ctx)
+        {
+            db = ctx;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                db.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
         public IActionResult Index()
         {
-            if ( user == "" && card == -1 )
-                return View( "Login" );
+            if (user == "" && card == -1)
+                return View("Login");
 
             return View();
         }
@@ -220,13 +256,13 @@ namespace LibraryWebServer.Controllers
         /// <returns></returns>
         public IActionResult MyBooks()
         {
-            if ( user == "" && card == -1 )
-                return View( "Login" );
+            if (user == "" && card == -1)
+                return View("Login");
 
             return View();
         }
 
-        public HomeController( ILogger<HomeController> logger )
+        public HomeController(ILogger<HomeController> logger)
         {
             _logger = logger;
         }
@@ -236,10 +272,10 @@ namespace LibraryWebServer.Controllers
             return View();
         }
 
-        [ResponseCache( Duration = 0, Location = ResponseCacheLocation.None, NoStore = true )]
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
-            return View( new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier } );
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
     }
 }

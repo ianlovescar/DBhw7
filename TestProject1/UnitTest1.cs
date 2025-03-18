@@ -4,11 +4,15 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 
 namespace TestProject1
 {
+    
     public class UnitTest1
     {
+
+        
         // Uncomment this once you have scaffolded your library, 
         // then replace instances of 'X' below with your team number
 
@@ -49,7 +53,9 @@ namespace TestProject1
             var allTitlesResult = c.AllTitles() as JsonResult;
 
             dynamic x = allTitlesResult.Value;
-
+            System.Diagnostics.Debug.WriteLine("hello");
+            Debug.WriteLine(1 == x.Length);
+            Debug.WriteLine("123-5678901234" == x[0].isbn);
             Assert.Equal(1, x.Length);
             Assert.Equal("123-5678901234", x[0].isbn);
         }
